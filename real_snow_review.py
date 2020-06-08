@@ -22,7 +22,7 @@ bl_info = {
     "author": "Wolf <wolf.art3d@gmail.com>, modified by 1COD",
     "version": (1, 2),
     "blender": (2, 83, 0),
-    "location": "View 3D > Add Object or console",
+    "location": "View 3D > Add Object menu or search bar as an operator",
     "doc_url": "https://github.com/macio97/Real-Snow",
     "tracker_url": "https://github.com/macio97/Real-Snow/issues",
     "support": "COMMUNITY",
@@ -42,24 +42,24 @@ from bpy.types import Operator, Panel, PropertyGroup
 
 def main(self, context, obj, snow_col):
 
-    mesh = bpy.data.meshes.new("Snow")                
-    bm = bmesh_from_object(context, obj)  
+    mesh = bpy.data.meshes.new("Snow")
+    bm = bmesh_from_object(context, obj)
     if self.selected_faces:
-        down_faces = [face for face in bm.faces if not face.select]    
-    else:  
+        down_faces = [face for face in bm.faces if not face.select]
+    else:
         down_faces = [face for face in bm.faces if Vector(
         (0, 0, -1.0)).angle(face.normal, 4.0) < (1/self.coverage)]
     bmesh.ops.delete(bm, geom=down_faces, context='FACES_KEEP_BOUNDARY')
     surface_area = sum(face.calc_area() for face in bm.faces)
-    bmesh_to_object(bm, mesh)    
-    
+    bmesh_to_object(bm, mesh)
+
     snow_object = bpy.data.objects.new("Snow", mesh)
-    snow_object.matrix_world = obj.matrix_world 
+    snow_object.matrix_world = obj.matrix_world
     context.collection.objects.link(snow_object)
-                          
+
     ballobj = add_metaballs(self,context, snow_col)
     snow_object.select_set(True)
-    context.view_layer.objects.active = snow_object  
+    context.view_layer.objects.active = snow_object
     snow = add_particles(self,context, surface_area, snow_object, ballobj)
 
     add_material(snow)
@@ -73,8 +73,8 @@ class SNOW_OT_Create(Operator):
     bl_label = "Create Snow"
     bl_description = "Create snow (need a selection with active object)"
     bl_options = {'REGISTER', 'UNDO'}
-    
-    
+
+
     coverage: FloatProperty(
         name = "coverage",
         description = "surface of the object covered by snow",
@@ -84,7 +84,7 @@ class SNOW_OT_Create(Operator):
         soft_min = 0.38,
         soft_max = 0.7
         )
-        
+
     selected_faces : BoolProperty(
         name = "Selected Faces",
         description = "Add snow only on selected faces",
@@ -100,7 +100,7 @@ class SNOW_OT_Create(Operator):
         soft_min = 0.1,
         soft_max = 1.5
         )
-        
+
     density : IntProperty(
         name = "density",
         description = "density of the snow",
@@ -109,7 +109,7 @@ class SNOW_OT_Create(Operator):
         max = 100,
         subtype = 'FACTOR'
         )
-        
+
     apply_2_all : BoolProperty(
         name = "apply to all selected",
         description = "",
@@ -121,36 +121,36 @@ class SNOW_OT_Create(Operator):
         #conditions to be run from search console too
         if not context.object in context.selected_objects:
             return False
-        if not context.area.type == 'VIEW_3D': 
+        if not context.area.type == 'VIEW_3D':
             return False
         if not context.object.mode == 'OBJECT':
             return False
-        
+
         return True
-    
+
     def execute(self, context):
 
-        cao=bpy.context.active_object            
+        cao=bpy.context.active_object
         snow_col = snow_coll(context.scene)
 
-        if not self.apply_2_all:            
-            obj=cao            
-            if obj.type == 'MESH':   
-                         
-                bpy.ops.object.transform_apply(location=False, scale=True, rotation=False)  
+        if not self.apply_2_all:
+            obj=cao
+            if obj.type == 'MESH':
+
+                bpy.ops.object.transform_apply(location=False, scale=True, rotation=False)
                 main(self, context, obj, snow_col)
-                
+
         if self.apply_2_all:
             # start UI progress bar
             input_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
             length = len(input_objects)
-            wm = context.window_manager            
+            wm = context.window_manager
             wm.progress_begin(0, length)
             timer=0
 
             for obj in context.selected_objects:
-                if obj.type == 'MESH':                    
-                    
+                if obj.type == 'MESH':
+
                     bpy.ops.object.transform_apply(location=False, scale=True, rotation=False)
                     context.view_layer.objects.active = obj
                     main(self, context, obj, snow_col)
@@ -159,46 +159,46 @@ class SNOW_OT_Create(Operator):
                     timer += 0.001
             # end progress bar
             wm.progress_end()
-         
-        
-        return {'FINISHED'}  
-    
+
+
+        return {'FINISHED'}
+
 def snow_coll(scene):
-    
+
     if "Snow" in scene.collection.children:
         snow_coll = bpy.data.collections["Snow"]
-    else:       
+    else:
         snow_coll = bpy.data.collections.new("Snow")
         scene.collection.children.link(snow_coll)
-        
-    return snow_coll        
-        
+
+    return snow_coll
+
 def bmesh_from_object(context,obj):
-    
+
     if obj.modifiers:
         depsgraph = context.evaluated_depsgraph_get()
-        obj_eval = obj.evaluated_get(depsgraph) 
+        obj_eval = obj.evaluated_get(depsgraph)
         me = obj_eval.to_mesh()
         bm = bmesh.new()
         bm.from_mesh(me)
         obj_eval.to_mesh_clear()
     else:
-        me = obj.data 
+        me = obj.data
         bm = bmesh.new()
         bm.from_mesh(me)
-        
+
     return bm
 
 def bmesh_to_object(bm, mesh):
     bm.to_mesh(mesh)
-    bm.free() 
+    bm.free()
 
 def add_metaballs(self, context, snow_col) -> bpy.types.Object:
     ball_name = "SnowBall"
     ball = bpy.data.metaballs.new(ball_name)
     ballobj = bpy.data.objects.new(ball_name, ball)
-    snow_col.objects.link(ballobj)  
-                
+    snow_col.objects.link(ballobj)
+
     # these settings have proven to work on a large amount of scenarios
     ball.resolution = 0.7*self.height+0.3
     ball.threshold = 1.3
@@ -206,9 +206,9 @@ def add_metaballs(self, context, snow_col) -> bpy.types.Object:
     element.radius = 1.5
     element.stiffness = 0.75
     ballobj.scale = [0.09, 0.09, 0.09]
-    
-    return ballobj      
-    
+
+    return ballobj
+
 def add_particles(self, context, surface_area, snow_object, ballobj):
     # approximate the number of particles to be emitted
     number = int(surface_area*50*(self.height**-2)*((self.density/100)**2))
@@ -236,9 +236,9 @@ def add_particles(self, context, surface_area, snow_object, ballobj):
     snow_object.select_set(True)
     bpy.ops.object.delete()
     snow.select_set(True)
-    
+
     return snow
-    
+
 def add_material(obj: bpy.types.Object):
     mat_name = "Snow"
     # if material doesn't exist, create it
@@ -368,7 +368,7 @@ def add_material(obj: bpy.types.Object):
 def add_object_snow_button(self, context):
     pass
     self.layout.operator(
-        "snow.create", 
+        "snow.create",
         text="Add Snow",
         icon="FREEZE")
 
